@@ -25,7 +25,7 @@ abstract sig Request{
 	key: Key,
 	val: lone Val,
 	var client: lone Client,
-	var reqSrvr: lone Server
+	reqSrvr: lone Server
 }
 
 sig ReqFind, ReqStore, OpFind, OpStore extends Request{}
@@ -47,7 +47,7 @@ pred init{
 	no sInbox
 	//no cInbox
 	some cOutbox
-	all r: Request | one c: Client | r in c.cOutbox
+	all r: Request | one c: Client | r in c.cOutbox and (r in ReqFind or r in ReqStore)
 
 }
 
@@ -57,7 +57,6 @@ pred stutter[]{
 	sInbox' = sInbox
 	//cInbox' = cInbox
 	cOutbox' = cOutbox
-	reqSrvr' = reqSrvr
 	client' = client
 	srvr' = srvr
 	SActive' = SActive
@@ -129,7 +128,6 @@ pred connect_server[s1 : Server, s2 : Server]{
 	sInbox' = sInbox
 	//cInbox' = cInbox
 	cOutbox' = cOutbox
-	reqSrvr' = reqSrvr
 	client' = client
 	srvr' = srvr
 	CActive' = CActive
@@ -151,7 +149,6 @@ pred connect_client[c : Client, s : Server]{
 	sInbox' = sInbox
 	//cInbox' = cInbox
 	cOutbox' = cOutbox
-	reqSrvr' = reqSrvr
 	client' = client
 	SActive' = SActive
 	SInactive' = SInactive
@@ -168,6 +165,7 @@ pred send_store_request[c: Client, r: Request]{
 	r in c.cOutbox
 	one r.val
 	no r.reqSrvr
+	no r.client
 
 	//post conditions
 	client' = client + (r -> c)
@@ -177,7 +175,31 @@ pred send_store_request[c: Client, r: Request]{
 	//frame 
 	store' = store
 	//cInbox' = cInbox
-	reqSrvr' = reqSrvr
+	SActive' = SActive
+	SInactive' = SInactive
+	CActive' = CActive
+	CInactive' = CInactive
+	nxt' = nxt
+	srvr' = srvr
+	
+}
+
+pred send_find_request[c: Client, r: Request]{
+	//pre conditions
+	c in CActive
+	r in c.cOutbox
+	no r.val
+	no r.reqSrvr
+	no r.client
+
+	//post conditions
+	client' = client + (r -> c)
+	cOutbox' = cOutbox - (c->r)
+	sInbox' = sInbox + (c.srvr->r)
+	
+	//frame 
+	store' = store
+	//cInbox' = cInbox
 	SActive' = SActive
 	SInactive' = SInactive
 	CActive' = CActive
@@ -191,7 +213,7 @@ fact {
 	system[]
 }
 
-run { #Response = 0 and #Server = 4 and #Client = 4 and SInactive = none and CInactive = none and eventually (#sInbox = 1) } for 6
+run { #Response = 0 and #Server = 1 and #Client = 4 and #SInactive = 0 and #CInactive = 0 and eventually (#sInbox = 2) } for 6
 
 //pending store keys for each server
 //if receives storeOp for k1 and has k1 on pending, sends store fail to client and server that started (he removes its pending)
