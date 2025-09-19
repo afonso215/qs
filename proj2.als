@@ -9,33 +9,26 @@ sig Server {
 	var sInbox: set Request
 }
 
-sig SActive, SInactive in Server {}
+var sig SActive, SInactive in Server {}
 
 sig Client {
 
 	var srvr: lone Server,
-	var cInbox: set Response,
+	//var cInbox: set Response,
 	var cOutbox: set Request
 }
 
-sig Request{
+var sig CActive, CInactive in Client {}
+
+abstract sig Request{
 
 	key: Key,
 	val: lone Val,
-	client: Client
+	var client: lone Client,
+	var reqSrvr: lone Server
 }
 
-sig ReqFind, ReqStore in Request{}
-
-sig OpFind in Request{
-
-	findSrvr: Server //server que fez o find request
-}
-
-sig OpStore in Request{
-
-	storeSrvr: Server //server que fez o store request
-}
+sig ReqFind, ReqStore, OpFind, OpStore extends Request{}
 
 sig Response{
 
@@ -45,16 +38,32 @@ sig Response{
 
 sig StoreSuc, StoreFail, FindSuc, FindFail in Response{}
 
-sig CActive, CInactive in Client {}
 
 pred init{
-	
+
 	one SActive
 	nxt = SActive -> SActive
 	
 	no sInbox
-	no cInbox
+	//no cInbox
 	some cOutbox
+	all r: Request | one c: Client | r in c.cOutbox
+
+}
+
+pred stutter[]{
+	nxt' = nxt
+	store' = store
+	sInbox' = sInbox
+	//cInbox' = cInbox
+	cOutbox' = cOutbox
+	reqSrvr' = reqSrvr
+	client' = client
+	srvr' = srvr
+	SActive' = SActive
+	SInactive' = SInactive
+	CActive' = CActive
+	CInactive' = CInactive
 }
 
 pred trans[]{
@@ -62,7 +71,9 @@ pred trans[]{
 	||
 	some s1,s2 : Server | connect_server[s1,s2]
 	||
-	some c : Client ,s : Server | connect_client[c,s]
+	some c : Client , s : Server | connect_client[c,s]
+	||
+	some  c : Client , r : Request | send_request[c,r]
 }
 
 pred valid[] {
@@ -85,6 +96,8 @@ pred valid[] {
 
 	//serveres inativos nao podem ter entradas
 	no SInactive.store
+
+	all c : CActive | one c.srvr
 
 	//serve para criar a conexao em ciclo
 	all s : SActive  | s.^nxt = SActive
@@ -113,9 +126,11 @@ pred connect_server[s1 : Server, s2 : Server]{
 	
 	//frame 
 	store' = store
-	//sInbox' = sInbox
-	//sInbox' = sInbox
-	//cOutbox' = cOutbox
+	sInbox' = sInbox
+	//cInbox' = cInbox
+	cOutbox' = cOutbox
+	reqSrvr' = reqSrvr
+	client' = client
 	srvr' = srvr
 	CActive' = CActive
 	CInactive' = CInactive
@@ -133,21 +148,54 @@ pred connect_client[c : Client, s : Server]{
 	
 	//frame 
 	store' = store
-	//sInbox' = sInbox
-	//sInbox' = sInbox
-	//cOutbox' = cOutbox
+	sInbox' = sInbox
+	//cInbox' = cInbox
+	cOutbox' = cOutbox
+	reqSrvr' = reqSrvr
+	client' = client
 	SActive' = SActive
 	SInactive' = SInactive
 	nxt' = nxt
 }
 
+pred send_request[c:Client, r: Request]{
+	send_store_request[c,r]
+}
 
+pred send_store_request[c: Client, r: Request]{
+	//pre conditions
+	c in CActive
+	r in c.cOutbox
+	one r.val
+	no r.reqSrvr
+
+	//post conditions
+	client' = client + (r -> c)
+	cOutbox' = cOutbox - (c->r)
+	sInbox' = sInbox + (c.srvr->r)
+	
+	//frame 
+	store' = store
+	//cInbox' = cInbox
+	reqSrvr' = reqSrvr
+	SActive' = SActive
+	SInactive' = SInactive
+	CActive' = CActive
+	CInactive' = CInactive
+	nxt' = nxt
+	srvr' = srvr
+	
+}
 
 fact {
 	system[]
 }
 
-run {#Server = 4 and #Client = 4 and  eventually (SInactive = none and CInactive = none) } for 6
+run { #Response = 0 and #Server = 4 and #Client = 4 and SInactive = none and CInactive = none and eventually (#sInbox = 1) } for 6
 
 //pending store keys for each server
 //if receives storeOp for k1 and has k1 on pending, sends store fail to client and server that started (he removes its pending)
+
+
+
+// vamos ter de fazer algo 
