@@ -36,7 +36,7 @@ sig Response{
 	val: lone Val
 }
 
-sig StoreSuc, StoreFail, FindSuc, FindFail in Response{}
+sig StoreSuc, StoreFail, FindSuc, FindFail extends Response{}
 
 
 pred init{
@@ -47,7 +47,7 @@ pred init{
 	no sInbox
 	//no cInbox
 	some cOutbox
-	all r: Request | one c: Client | r in c.cOutbox and (r in ReqFind or r in ReqStore)
+	all r: Request | one c: Client | r in c.cOutbox and (r in ReqFind or r in ReqStore) and no r.client
 
 }
 
@@ -73,6 +73,8 @@ pred trans[]{
 	some c : Client , s : Server | connect_client[c,s]
 	||
 	some  c : Client , r : Request | send_request[c,r]
+	||
+	some s : Server, r : Request | process[s,r]
 }
 
 pred valid[] {
@@ -209,15 +211,55 @@ pred send_find_request[c: Client, r: Request]{
 	
 }
 
+pred process[s: Server, r: Request]{
+	
+	process_store_req[s,r]
+	//||
+	//process_store_op[s]
+	//||
+	//process_store_req[s]
+	//||
+	//process_store_req[s]
+	
+}
+
+pred process_store_req[s: Server, r: Request]{
+
+	process_store_req_has_key[s,r]
+}
+
+pred process_store_req_has_key[s: Server, r: Request]{
+	//pre conditions
+	s in SActive
+	r in s.sInbox
+	r in ReqStore
+	some v: Val | r.key->v in s.store
+
+	//acho q n é preciso verificar que nao tem server e tem cliente e val porque é verificado no envio do cliente e o req só pode vir a partir desse envio
+
+	//post conditions
+	store' = store - (s -> r.key -> Val) + (s -> r.key -> r.val)
+	sInbox' = sInbox - (s->r)
+	//enviar para o client
+	
+	//frame
+	nxt' = nxt
+	//cInbox' = cInbox
+	cOutbox' = cOutbox
+	client' = client
+	srvr' = srvr
+	SActive' = SActive
+	SInactive' = SInactive
+	CActive' = CActive
+	CInactive' = CInactive
+	
+}
+
 fact {
 	system[]
 }
 
-run { #Response = 0 and #Server = 1 and #Client = 4 and #SInactive = 0 and #CInactive = 0 and eventually (#sInbox = 2) } for 6
+run { #Response = 0 and #Val = 3 and #Server = 1 and #Client = 4 and #SInactive = 0 and #CInactive = 0 and eventually (#sInbox = 2 and eventually (#sInbox = 1)) } for 6
 
 //pending store keys for each server
 //if receives storeOp for k1 and has k1 on pending, sends store fail to client and server that started (he removes its pending)
-
-
-
-// vamos ter de fazer algo 
